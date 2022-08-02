@@ -1,0 +1,177 @@
+[
+  {
+    "objectID": "nbs/2020-09-01-fastcore.html",
+    "href": "nbs/2020-09-01-fastcore.html",
+    "title": "fastcore: An Underrated Python Library",
+    "section": "",
+    "text": "screenshot with code"
+  },
+  {
+    "objectID": "nbs/2020-09-01-fastcore.html#making-kwargs-transparent",
+    "href": "nbs/2020-09-01-fastcore.html#making-kwargs-transparent",
+    "title": "fastcore: An Underrated Python Library",
+    "section": "Making **kwargs transparent",
+    "text": "Making **kwargs transparent\nWhenever I see a function that has the argument **kwargs, I cringe a little. This is because it means the API is obfuscated and I have to read the source code to figure out what valid parameters might be. Consider the below example:\n\ndef baz(a, b=2, c=3, d=4): return a + b + c\n\ndef foo(c, a, **kwargs):\n    return c + baz(a, **kwargs)\n\ninspect.signature(foo)\n\n<Signature (c, a, **kwargs)>\n\n\nWithout reading the source code, it might be hard for me to know that foo also accepts and additional parameters b and d. We can fix this with delegates:\n\ndef baz(a, b=2, c=3, d=4): return a + b + c\n\n@delegates(baz) # this decorator will pass down keyword arguments from baz\ndef foo(c, a, **kwargs):\n    return c + baz(a, **kwargs)\n\ninspect.signature(foo)\n\n<Signature (c, a, b=2, d=4)>\n\n\nYou can customize the behavior of this decorator. For example, you can have your cake and eat it too by passing down your arguments and also keeping **kwargs:\n\n@delegates(baz, keep=True)\ndef foo(c, a, **kwargs):\n    return c + baz(a, **kwargs)\n\ninspect.signature(foo)\n\n<Signature (c, a, b=2, d=4, **kwargs)>\n\n\nYou can also exclude arguments. For example, we exclude argument d from delegation:\n\ndef basefoo(a, b=2, c=3, d=4): pass\n\n@delegates(basefoo, but=['d']) # exclude `d`\ndef foo(c, a, **kwargs): pass\n\ninspect.signature(foo)\n\n<Signature (c, a, b=2)>\n\n\nYou can also delegate between classes:\n\nclass BaseFoo:\n    def __init__(self, e, c=2): pass\n\n@delegates()# since no argument was passsed here we delegate to the superclass\nclass Foo(BaseFoo):\n    def __init__(self, a, b=1, **kwargs): super().__init__(**kwargs)\n        \ninspect.signature(Foo)\n\n<Signature (a, b=1, c=2)>\n\n\nFor more information, read the docs on delegates."
+  },
+  {
+    "objectID": "nbs/2020-09-01-fastcore.html#avoid-boilerplate-when-setting-instance-attributes",
+    "href": "nbs/2020-09-01-fastcore.html#avoid-boilerplate-when-setting-instance-attributes",
+    "title": "fastcore: An Underrated Python Library",
+    "section": "Avoid boilerplate when setting instance attributes",
+    "text": "Avoid boilerplate when setting instance attributes\nHave you ever wondered if it was possible to avoid the boilerplate involved with setting attributes in __init__?\n\nclass Test:\n    def __init__(self, a, b ,c): \n        self.a, self.b, self.c = a, b, c\n\nOuch! That was painful. Look at all the repeated variable names. Do I really have to repeat myself like this when defining a class? Not Anymore! Checkout store_attr:\n\nclass Test:\n    def __init__(self, a, b, c): \n        store_attr()\n        \nt = Test(5,4,3)\nassert t.b == 4\n\nYou can also exclude certain attributes:\n\nclass Test:\n    def __init__(self, a, b, c): \n        store_attr(but=['c'])\n    \nt = Test(5,4,3)\nassert t.b == 4\nassert not hasattr(t, 'c')\n\nThere are many more ways of customizing and using store_attr than I highlighted here. Check out the docs for more detail.\nP.S. you might be thinking that Python dataclasses also allow you to avoid this boilerplate. While true in some cases, store_attr is more flexible.{% fn 1 %}\n{{ “For example, store_attr does not rely on inheritance, which means you won’t get stuck using multiple inheritance when using this with your own classes. Also, unlike dataclasses, store_attr does not require python 3.7 or higher. Furthermore, you can use store_attr anytime in the object lifecycle, and in any location in your class to customize the behavior of how and when variables are stored.” | fndetail: 1 }}"
+  },
+  {
+    "objectID": "nbs/2020-09-01-fastcore.html#avoiding-subclassing-boilerplate",
+    "href": "nbs/2020-09-01-fastcore.html#avoiding-subclassing-boilerplate",
+    "title": "fastcore: An Underrated Python Library",
+    "section": "Avoiding subclassing boilerplate",
+    "text": "Avoiding subclassing boilerplate\nOne thing I hate about python is the __super__().__init__() boilerplate associated with subclassing. For example:\n\nclass ParentClass:\n    def __init__(self): self.some_attr = 'hello'\n        \nclass ChildClass(ParentClass):\n    def __init__(self):\n        super().__init__()\n\ncc = ChildClass()\nassert cc.some_attr == 'hello' # only accessible b/c you used super\n\nWe can avoid this boilerplate by using the metaclass PrePostInitMeta. We define a new class called NewParent that is a wrapper around the ParentClass:\n\nclass NewParent(ParentClass, metaclass=PrePostInitMeta):\n    def __pre_init__(self, *args, **kwargs): super().__init__()\n\nclass ChildClass(NewParent):\n    def __init__(self):pass\n    \nsc = ChildClass()\nassert sc.some_attr == 'hello'"
+  },
+  {
+    "objectID": "nbs/2020-09-01-fastcore.html#type-dispatch",
+    "href": "nbs/2020-09-01-fastcore.html#type-dispatch",
+    "title": "fastcore: An Underrated Python Library",
+    "section": "Type Dispatch",
+    "text": "Type Dispatch\nType dispatch, or Multiple dispatch, allows you to change the way a function behaves based upon the input types it receives. This is a prominent feature in some programming languages like Julia. For example, this is a conceptual example of how multiple dispatch works in Julia, returning different values depending on the input types of x and y:\ncollide_with(x::Asteroid, y::Asteroid) = ... \n# deal with asteroid hitting asteroid\n\ncollide_with(x::Asteroid, y::Spaceship) = ... \n# deal with asteroid hitting spaceship\n\ncollide_with(x::Spaceship, y::Asteroid) = ... \n# deal with spaceship hitting asteroid\n\ncollide_with(x::Spaceship, y::Spaceship) = ... \n# deal with spaceship hitting spaceship\nType dispatch can be especially useful in data science, where you might allow different input types (i.e. Numpy arrays and Pandas dataframes) to a function that processes data. Type dispatch allows you to have a common API for functions that do similar tasks.\nUnfortunately, Python does not support this out-of-the box. Fortunately, there is the @typedispatch decorator to the rescue. This decorator relies upon type hints in order to route inputs the correct version of the function:\n\n@typedispatch\ndef f(x:str, y:str): return f'{x}{y}'\n\n@typedispatch\ndef f(x:np.ndarray): return x.sum()\n\n@typedispatch\ndef f(x:int, y:int): return x+y\n\nBelow is a demonstration of type dispatch at work for the function f:\n\nf('Hello ', 'World!')\n\n'Hello World!'\n\n\n\nf(2,3)\n\n5\n\n\n\nf(np.array([5,5,5,5]))\n\n20\n\n\nThere are limitations of this feature, as well as other ways of using this functionality that you can read about here. In the process of learning about typed dispatch, I also found a python library called multipledispatch made by Mathhew Rocklin (the creator of Dask).\nAfter using this feature, I am now motivated to learn languages like Julia to discover what other paradigms I might be missing."
+  },
+  {
+    "objectID": "nbs/2020-09-01-fastcore.html#a-better-version-of-functools.partial",
+    "href": "nbs/2020-09-01-fastcore.html#a-better-version-of-functools.partial",
+    "title": "fastcore: An Underrated Python Library",
+    "section": "A better version of functools.partial",
+    "text": "A better version of functools.partial\nfunctools.partial is a great utility that creates functions from other functions that lets you set default values. Lets take this function for example that filters a list to only contain values >= val:\n\ntest_input = [1,2,3,4,5,6]\ndef f(arr, val): \n    \"Filter a list to remove any values that are less than val.\"\n    return [x for x in arr if x >= val]\n\nf(test_input, 3)\n\n[3, 4, 5, 6]\n\n\nYou can create a new function out of this function using partial that sets the default value to 5:\n\nfilter5 = partial(f, val=5)\nfilter5(test_input)\n\n[5, 6]\n\n\nOne problem with partial is that it removes the original docstring and replaces it with a generic docstring:\n\nfilter5.__doc__\n\n'partial(func, *args, **keywords) - new function with partial application\\n    of the given arguments and keywords.\\n'\n\n\nfastcore.utils.partialler fixes this, and makes sure the docstring is retained such that the new API is transparent:\n\nfilter5 = partialler(f, val=5)\nfilter5.__doc__\n\n'Filter a list to remove any values that are less than val.'"
+  },
+  {
+    "objectID": "nbs/2020-09-01-fastcore.html#composition-of-functions",
+    "href": "nbs/2020-09-01-fastcore.html#composition-of-functions",
+    "title": "fastcore: An Underrated Python Library",
+    "section": "Composition of functions",
+    "text": "Composition of functions\nA technique that is pervasive in functional programming languages is function composition, whereby you chain a bunch of functions together to achieve some kind of result. This is especially useful when applying various data transformations. Consider a toy example where I have three functions: (1) Removes elements of a list less than 5 (from the prior section) (2) adds 2 to each number (3) sums all the numbers:\n\ndef add(arr, val): return [x + val for x in arr]\ndef arrsum(arr): return sum(arr)\n\n# See the previous section on partialler\nadd2 = partialler(add, val=2)\n\ntransform = compose(filter5, add2, arrsum)\ntransform([1,2,3,4,5,6])\n\n15\n\n\nBut why is this useful? You might me thinking, I can accomplish the same thing with:\narrsum(add2(filter5([1,2,3,4,5,6])))\nYou are not wrong! However, composition gives you a convenient interface in case you want to do something like the following:\n\ndef fit(x, transforms:list):\n    \"fit a model after performing transformations\"\n    x = compose(*transforms)(x)\n    y = [np.mean(x)] * len(x) # its a dumb model.  Don't judge me\n    return y\n\n# filters out elements < 5, adds 2, then predicts the mean\nfit(x=[1,2,3,4,5,6], transforms=[filter5, add2])\n\n[7.5, 7.5]\n\n\nFor more information about compose, read the docs."
+  },
+  {
+    "objectID": "nbs/2020-09-01-fastcore.html#a-more-useful-repr",
+    "href": "nbs/2020-09-01-fastcore.html#a-more-useful-repr",
+    "title": "fastcore: An Underrated Python Library",
+    "section": "A more useful repr",
+    "text": "A more useful repr\nIn python, __repr__ helps you get information about an object for logging and debugging. Below is what you get by default when you define a new class. (Note: we are using store_attr, which was discussed earlier).\n\nclass Test:\n    def __init__(self, a, b=2, c=3): store_attr() # `store_attr` was discussed previously\n    \nTest(1)\n\n<__main__.Test at 0x7f8c902e7220>\n\n\nWe can use basic_repr to quickly give us a more sensible default:\n\nclass Test:\n    def __init__(self, a, b=2, c=3): store_attr() \n    __repr__ = basic_repr('a,b,c')\n    \nTest(2)\n\nTest(a=2, b=2, c=3)"
+  },
+  {
+    "objectID": "nbs/2020-09-01-fastcore.html#monkey-patching-with-a-decorator",
+    "href": "nbs/2020-09-01-fastcore.html#monkey-patching-with-a-decorator",
+    "title": "fastcore: An Underrated Python Library",
+    "section": "Monkey Patching With A Decorator",
+    "text": "Monkey Patching With A Decorator\nIt can be convenient to monkey patch with a decorator, which is especially helpful when you want to patch an external library you are importing. We can use the decorator @patch from fastcore.foundation along with type hints like so:\n\nclass MyClass(int): pass  \n\n@patch\ndef func(self:MyClass, a): return self+a\n\nmc = MyClass(3)\n\nNow, MyClass has an additional method named func:\n\nmc.func(10)\n\n13\n\n\nStill not convinced? I’ll show you another example of this kind of patching in the next section."
+  },
+  {
+    "objectID": "nbs/2020-09-01-fastcore.html#a-better-pathlib.path",
+    "href": "nbs/2020-09-01-fastcore.html#a-better-pathlib.path",
+    "title": "fastcore: An Underrated Python Library",
+    "section": "A better pathlib.Path",
+    "text": "A better pathlib.Path\nWhen you see these extensions to pathlib.path you won’t ever use vanilla pathlib again! A number of additional methods have been added to pathlib, such as:\n\nPath.readlines: same as with open('somefile', 'r') as f: f.readlines()\nPath.read: same as with open('somefile', 'r') as f: f.read()\nPath.save: saves file as pickle\nPath.load: loads pickle file\nPath.ls: shows the contents of the path as a list.\netc.\n\nRead more about this here. Here is a demonstration of ls:\n\nfrom fastcore.utils import *\nfrom pathlib import Path\np = Path('.')\np.ls() # you don't get this with vanilla Pathlib.Path!!\n\n(#12) [Path('_quarto.yml'),Path('.DS_Store'),Path('2020-09-01-fastcore.ipynb'),Path('_docs'),Path('.gitignore'),Path('fastcore_imgs'),Path('2020-02-20-test.ipynb'),Path('.ipynb_checkpoints'),Path('.vscode'),Path('.quarto')...]\n\n\nWait! What’s going on here? We just imported pathlib.Path - why are we getting this new functionality? Thats because we imported the fastcore.utils module, which patches this module via the @patch decorator discussed earlier. Just to drive the point home on why the @patch decorator is useful, I’ll go ahead and add another method to Path right now:\n\n@patch\ndef fun(self:Path): return \"This is fun!\"\n\np.fun()\n\n'This is fun!'\n\n\nThat is magical, right? I know! That’s why I’m writing about it!"
+  },
+  {
+    "objectID": "nbs/2020-09-01-fastcore.html#an-even-more-concise-way-to-create-lambdas",
+    "href": "nbs/2020-09-01-fastcore.html#an-even-more-concise-way-to-create-lambdas",
+    "title": "fastcore: An Underrated Python Library",
+    "section": "An Even More Concise Way To Create Lambdas",
+    "text": "An Even More Concise Way To Create Lambdas\nSelf, with an uppercase S, is an even more concise way to create lambdas that are calling methods on an object. For example, let’s create a lambda for taking the sum of a Numpy array:\n\narr=np.array([5,4,3,2,1])\nf = lambda a: a.sum()\nassert f(arr) == 15\n\nYou can use Self in the same way:\n\nf = Self.sum()\nassert f(arr) == 15\n\nLet’s create a lambda that does a groupby and max of a Pandas dataframe:\n\nimport pandas as pd\ndf=pd.DataFrame({'Some Column': ['a', 'a', 'b', 'b', ], \n                 'Another Column': [5, 7, 50, 70]})\n\nf = Self.groupby('Some Column').mean()\nf(df)\n\n\n\n\n\n  \n    \n      \n      Another Column\n    \n    \n      Some Column\n      \n    \n  \n  \n    \n      a\n      6.0\n    \n    \n      b\n      60.0\n    \n  \n\n\n\n\nRead more about Self in the docs."
+  },
+  {
+    "objectID": "nbs/2020-09-01-fastcore.html#notebook-functions",
+    "href": "nbs/2020-09-01-fastcore.html#notebook-functions",
+    "title": "fastcore: An Underrated Python Library",
+    "section": "Notebook Functions",
+    "text": "Notebook Functions\nThese are simple but handy, and allow you to know whether or not code is executing in a Jupyter Notebook, Colab, or an Ipython Shell:\n\nfrom fastcore.imports import in_notebook, in_colab, in_ipython\nin_notebook(), in_colab(), in_ipython()\n\n(False, False, True)\n\n\nThis is useful if you are displaying certain types of visualizations, progress bars or animations in your code that you may want to modify or toggle depending on the environment."
+  },
+  {
+    "objectID": "nbs/2020-09-01-fastcore.html#a-drop-in-replacement-for-list",
+    "href": "nbs/2020-09-01-fastcore.html#a-drop-in-replacement-for-list",
+    "title": "fastcore: An Underrated Python Library",
+    "section": "A Drop-In Replacement For List",
+    "text": "A Drop-In Replacement For List\nYou might be pretty happy with Python’s list. This is one of those situations that you don’t know you needed a better list until someone showed one to you. Enter L, a list like object with many extra goodies.\nThe best way I can describe L is to pretend that list and numpy had a pretty baby:\ndefine a list (check out the nice __repr__ that shows the length of the list!)\n\nL(1,2,3)\n\n(#3) [1,2,3]\n\n\nShuffle a list:\n\np = L.range(20).shuffle()\np\n\n(#20) [12,14,11,19,13,4,8,0,18,5...]\n\n\nIndex into a list:\n\np[2,4,6]\n\n(#3) [11,13,8]\n\n\nL has sensible defaults, for example appending an element to a list:\n\n1 + L(2,3,4)\n\n(#4) [1,2,3,4]\n\n\nThere is much more L has to offer. Read the docs to learn more."
+  },
+  {
+    "objectID": "nbs/2020-09-01-fastcore.html#utilities",
+    "href": "nbs/2020-09-01-fastcore.html#utilities",
+    "title": "fastcore: An Underrated Python Library",
+    "section": "Utilities",
+    "text": "Utilities\nThe Basics section contain many shortcuts to perform common tasks or provide an additional interface to what standard python provides.\n\nmk_class: quickly add a bunch of attributes to a class\nwrap_class: add new methods to a class with a simple decorator\ngroupby: similar to Scala’s groupby\nmerge: merge dicts\nfasttuple: a tuple on steroids\nInfinite Lists: useful for padding and testing\nchunked: for batching and organizing stuff"
+  },
+  {
+    "objectID": "nbs/2020-09-01-fastcore.html#multiprocessing",
+    "href": "nbs/2020-09-01-fastcore.html#multiprocessing",
+    "title": "fastcore: An Underrated Python Library",
+    "section": "Multiprocessing",
+    "text": "Multiprocessing\nThe Multiprocessing section extends python’s multiprocessing library by offering features like:\n\nprogress bars\nability to pause to mitigate race conditions with external services\nprocessing things in batches on each worker, ex: if you have a vectorized operation to perform in chunks"
+  },
+  {
+    "objectID": "nbs/2020-09-01-fastcore.html#functional-programming",
+    "href": "nbs/2020-09-01-fastcore.html#functional-programming",
+    "title": "fastcore: An Underrated Python Library",
+    "section": "Functional Programming",
+    "text": "Functional Programming\nThe functional programming section is my favorite part of this library.\n\nmaps: a map that also composes functions\nmapped: A more robust map\nusing_attr: compose a function that operates on an attribute"
+  },
+  {
+    "objectID": "nbs/2020-09-01-fastcore.html#transforms",
+    "href": "nbs/2020-09-01-fastcore.html#transforms",
+    "title": "fastcore: An Underrated Python Library",
+    "section": "Transforms",
+    "text": "Transforms\nTransforms is a collection of utilities for creating data transformations and associated pipelines. These transformation utilities build upon many of the building blocks discussed in this blog post."
+  },
+  {
+    "objectID": "nbs/2020-09-01-fastcore.html#further-reading",
+    "href": "nbs/2020-09-01-fastcore.html#further-reading",
+    "title": "fastcore: An Underrated Python Library",
+    "section": "Further Reading",
+    "text": "Further Reading\nIt should be noted that you should read the main page of the docs first, followed by the section on tests to fully understand the documentation.\n\nThe fastcore documentation site.\nThe fastcore GitHub repo.\nBlog post on delegation."
+  },
+  {
+    "objectID": "nbs/2020-02-20-test.html",
+    "href": "nbs/2020-02-20-test.html",
+    "title": "Fastpages Notebook Blog Post",
+    "section": "",
+    "text": "This notebook is a demonstration of some of capabilities of fastpages with notebooks.\nWith fastpages you can save your jupyter notebooks into the _notebooks folder at the root of your repository, and they will be automatically be converted to Jekyll compliant blog posts!\n\n\nThe first cell in your Jupyter Notebook or markdown blog post contains front matter. Front matter is metadata that can turn on/off options in your Notebook. It is formatted like this:\n# \"My Title\"\n> \"Awesome summary\"\n\n- toc: true\n- branch: master\n- badges: true\n- comments: true\n- author: Hamel Husain & Jeremy Howard\n- categories: [fastpages, jupyter]\n\nSetting toc: true will automatically generate a table of contents\nSetting badges: true will automatically include GitHub and Google Colab links to your notebook.\nSetting comments: true will enable commenting on your blog post, powered by utterances.\n\nThe title and description need to be enclosed in double quotes only if they include special characters such as a colon. More details and options for front matter can be viewed on the front matter section of the README.\n\n\n\nA #hide comment at the top of any code cell will hide both the input and output of that cell in your blog post.\nA #hide_input comment at the top of any code cell will only hide the input of that cell.\n\nprint('The comment #hide_input was used to hide the code that produced this.')\n\nThe comment #hide_input was used to hide the code that produced this.\n\n\nput a #collapse-hide flag at the top of any cell if you want to hide that cell by default, but give the reader the option to show it:\n\nimport pandas as pd\nimport altair as alt\n\nput a #collapse-show flag at the top of any cell if you want to show that cell by default, but give the reader the option to hide it:\n\ncars = 'https://vega.github.io/vega-datasets/data/cars.json'\nmovies = 'https://vega.github.io/vega-datasets/data/movies.json'\nsp500 = 'https://vega.github.io/vega-datasets/data/sp500.csv'\nstocks = 'https://vega.github.io/vega-datasets/data/stocks.csv'\nflights = 'https://vega.github.io/vega-datasets/data/flights-5k.json'\n\nplace a #collapse-output flag at the top of any cell if you want to put the output under a collapsable element that is closed by default, but give the reader the option to open it:\n\nprint('The comment #collapse-output was used to collapse the output of this cell by default but you can expand it.')\n\nThe comment #collapse-output was used to collapse the output of this cell by default but you can expand it.\n\n\n\n\n\nCharts made with Altair remain interactive. Example charts taken from this repo, specifically this notebook.\n\n\n\n# single-value selection over [Major_Genre, MPAA_Rating] pairs\n# use specific hard-wired values as the initial selected values\nselection = alt.selection_single(\n    name='Select',\n    fields=['Major_Genre', 'MPAA_Rating'],\n    init={'Major_Genre': 'Drama', 'MPAA_Rating': 'R'},\n    bind={'Major_Genre': alt.binding_select(options=genres), 'MPAA_Rating': alt.binding_radio(options=mpaa)}\n)\n  \n# scatter plot, modify opacity based on selection\nalt.Chart(df).mark_circle().add_selection(\n    selection\n).encode(\n    x='Rotten_Tomatoes_Rating:Q',\n    y='IMDB_Rating:Q',\n    tooltip='Title:N',\n    opacity=alt.condition(selection, alt.value(0.75), alt.value(0.05))\n)\n\n\n\n\n\n\n\n\n\n\n\nalt.Chart(df).mark_circle().add_selection(\n    alt.selection_interval(bind='scales', encodings=['x'])\n).encode(\n    alt.X('Rotten_Tomatoes_Rating', type='quantitative'),\n    alt.Y('IMDB_Rating', type='quantitative', axis=alt.Axis(minExtent=30)),\n#     y=alt.Y('IMDB_Rating:Q', ), # use min extent to stabilize axis title placement\n    tooltip=['Title:N', 'Release_Date:N', 'IMDB_Rating:Q', 'Rotten_Tomatoes_Rating:Q']\n).properties(\n    width=500,\n    height=400\n)\n\n\n\n\n\n\n\n\n\n\n\n# select a point for which to provide details-on-demand\nlabel = alt.selection_single(\n    encodings=['x'], # limit selection to x-axis value\n    on='mouseover',  # select on mouseover events\n    nearest=True,    # select data point nearest the cursor\n    empty='none'     # empty selection includes no data points\n)\n\n# define our base line chart of stock prices\nbase = alt.Chart().mark_line().encode(\n    alt.X('date:T'),\n    alt.Y('price:Q', scale=alt.Scale(type='log')),\n    alt.Color('symbol:N')\n)\n\nalt.layer(\n    base, # base line chart\n    \n    # add a rule mark to serve as a guide line\n    alt.Chart().mark_rule(color='#aaa').encode(\n        x='date:T'\n    ).transform_filter(label),\n    \n    # add circle marks for selected time points, hide unselected points\n    base.mark_circle().encode(\n        opacity=alt.condition(label, alt.value(1), alt.value(0))\n    ).add_selection(label),\n\n    # add white stroked text to provide a legible background for labels\n    base.mark_text(align='left', dx=5, dy=-5, stroke='white', strokeWidth=2).encode(\n        text='price:Q'\n    ).transform_filter(label),\n\n    # add text labels for stock prices\n    base.mark_text(align='left', dx=5, dy=-5).encode(\n        text='price:Q'\n    ).transform_filter(label),\n    \n    data=stocks\n).properties(\n    width=500,\n    height=400\n)\n\n\n\n\n\n\n\n\n\n\nYou can display tables per the usual way in your blog:\n\n# display table with pandas\ndf[['Title', 'Worldwide_Gross', \n    'Production_Budget', 'Distributor', 'MPAA_Rating', 'IMDB_Rating', 'Rotten_Tomatoes_Rating']].head()\n\n\n\n\n\n  \n    \n      \n      Title\n      Worldwide_Gross\n      Production_Budget\n      Distributor\n      MPAA_Rating\n      IMDB_Rating\n      Rotten_Tomatoes_Rating\n    \n  \n  \n    \n      0\n      The Land Girls\n      146083.0\n      8000000.0\n      Gramercy\n      R\n      6.1\n      NaN\n    \n    \n      1\n      First Love, Last Rites\n      10876.0\n      300000.0\n      Strand\n      R\n      6.9\n      NaN\n    \n    \n      2\n      I Married a Strange Person\n      203134.0\n      250000.0\n      Lionsgate\n      None\n      6.8\n      NaN\n    \n    \n      3\n      Let's Talk About Sex\n      373615.0\n      300000.0\n      Fine Line\n      None\n      NaN\n      13.0\n    \n    \n      4\n      Slam\n      1087521.0\n      1000000.0\n      Trimark\n      R\n      3.4\n      62.0\n    \n  \n\n\n\n\n\n\n\n\n\nYou can reference local images and they will be copied and rendered on your blog automatically. You can include these with the following markdown syntax:\n![](my_icons/fastai_logo.png)\n\n\n\n\nRemote images can be included with the following markdown syntax:\n![](https://image.flaticon.com/icons/svg/36/36686.svg)\n\n\n\n\nAnimated Gifs work, too!\n![](https://upload.wikimedia.org/wikipedia/commons/7/71/ChessPawnSpecialMoves.gif)\n\n\n\n\nYou can include captions with markdown images like this:\n![](https://www.fast.ai/images/fastai_paper/show_batch.png \"Credit: https://www.fast.ai/2020/02/13/fastai-A-Layered-API-for-Deep-Learning/\")"
+  },
+  {
+    "objectID": "nbs/2020-02-20-test.html#github-flavored-emojis",
+    "href": "nbs/2020-02-20-test.html#github-flavored-emojis",
+    "title": "Fastpages Notebook Blog Post",
+    "section": "GitHub Flavored Emojis",
+    "text": "GitHub Flavored Emojis\nTyping I give this post two :+1:! will render this:\nI give this post two :+1:!"
+  },
+  {
+    "objectID": "nbs/2020-02-20-test.html#tweetcards",
+    "href": "nbs/2020-02-20-test.html#tweetcards",
+    "title": "Fastpages Notebook Blog Post",
+    "section": "Tweetcards",
+    "text": "Tweetcards\nTyping > twitter: https://twitter.com/jakevdp/status/1204765621767901185?s=20 will render this:\n\ntwitter: https://twitter.com/jakevdp/status/1204765621767901185?s=20"
+  },
+  {
+    "objectID": "nbs/2020-02-20-test.html#youtube-videos",
+    "href": "nbs/2020-02-20-test.html#youtube-videos",
+    "title": "Fastpages Notebook Blog Post",
+    "section": "Youtube Videos",
+    "text": "Youtube Videos\nTyping > youtube: https://youtu.be/XfoYk_Z5AkI will render this:\n\nyoutube: https://youtu.be/XfoYk_Z5AkI"
+  },
+  {
+    "objectID": "nbs/2020-02-20-test.html#boxes-callouts",
+    "href": "nbs/2020-02-20-test.html#boxes-callouts",
+    "title": "Fastpages Notebook Blog Post",
+    "section": "Boxes / Callouts",
+    "text": "Boxes / Callouts\nTyping > Warning: There will be no second warning! will render this:\n\nWarning: There will be no second warning!\n\nTyping > Important: Pay attention! It's important. will render this:\n\nImportant: Pay attention! It’s important.\n\nTyping > Tip: This is my tip. will render this:\n\nTip: This is my tip.\n\nTyping > Note: Take note of this. will render this:\n\nNote: Take note of this.\n\nTyping > Note: A doc link to [an example website: fast.ai](https://www.fast.ai/) should also work fine. will render in the docs:\n\nNote: A doc link to an example website: fast.ai should also work fine."
+  },
+  {
+    "objectID": "nbs/2020-02-20-test.html#footnotes",
+    "href": "nbs/2020-02-20-test.html#footnotes",
+    "title": "Fastpages Notebook Blog Post",
+    "section": "Footnotes",
+    "text": "Footnotes\nYou can have footnotes in notebooks, however the syntax is different compared to markdown documents. This guide provides more detail about this syntax, which looks like this:\n{% raw %}For example, here is a footnote {% fn 1 %}.\nAnd another {% fn 2 %}\n{{ 'This is the footnote.' | fndetail: 1 }}\n{{ 'This is the other footnote. You can even have a [link](www.github.com)!' | fndetail: 2 }}{% endraw %}\nFor example, here is a footnote {% fn 1 %}.\nAnd another {% fn 2 %}\n{{ ‘This is the footnote.’ | fndetail: 1 }} {{ ‘This is the other footnote. You can even have a link!’ | fndetail: 2 }}"
+  },
+  {
+    "objectID": "index.html",
+    "href": "index.html",
+    "title": "myblog",
+    "section": "",
+    "text": "Order By\n       Default\n         \n          Title\n        \n         \n          Date - Oldest\n        \n         \n          Date - Newest\n        \n         \n          Author\n        \n     \n  \n    \n      \n      \n    \n\n\n\n\n  \n\n\n\n\n\n\n\n\nA unique python library that extends the python programming language and provides utilities that enhance productivity.\n\n\n\n\n\n\nHamel Husain\n\n\n\n\n\n\n  \n\n\n\n\n\n\n\n\nA tutorial of fastpages for Jupyter notebooks.\n\n\n\n\n\n\nJul 25, 2022\n\n\nHamel\n\n\n\n\n\n\nNo matching items"
+  }
+]

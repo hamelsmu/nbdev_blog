@@ -1,0 +1,26 @@
+ipynb-filters: [nbdev_filter]
+
+project:
+  type: website
+  output-dir: _docs
+  preview:
+    port: 3000
+    browser: false
+
+format:
+  html:
+    theme: cosmo
+    css: styles.css
+    toc: true
+
+website:
+  title: "A blog with nbdev"
+  description: "Create delightful software with Jupyter Notebooks"
+  execute:
+    enabled: false
+  twitter-card: true
+  open-graph: true
+  reader-mode: true
+  navbar:
+    background: primary
+    search: true
