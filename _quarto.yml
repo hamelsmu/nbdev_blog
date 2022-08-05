@@ -7,6 +7,9 @@ project:
     port: 3000
     browser: false
 
+execute:
+  freeze: true
+
 format:
   html:
     theme: cosmo
@@ -15,7 +18,7 @@ format:
 
 website:
   title: "A blog with nbdev"
-  site-url: "https://hamelsmu.github.io/nbdev_blog"
+  site-url: "https://hamelsmu.github.io/nbdev_blog/"
   description: "Create delightful software with Jupyter Notebooks"
   execute:
     enabled: false
